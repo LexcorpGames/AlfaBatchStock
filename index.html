@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Inventory</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0d1117;color:#e6edf3}
+body{font-family:'Inter',sans-serif;font-size:13px}
+
+#login-screen{position:fixed;inset:0;background:#0d1117;display:flex;align-items:center;justify-content:center;z-index:999}
+.login-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:40px 44px;width:380px}
+.login-logo{font-family:monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#58a6ff;margin-bottom:8px}
+.login-title{font-size:22px;font-weight:600;color:#e6edf3;margin-bottom:28px}
+.login-fg{margin-bottom:14px}
+.login-fg label{display:block;font-family:monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8b949e;margin-bottom:6px}
+.login-fg input{width:100%;padding:10px 14px;font-size:13px;font-family:'Inter',sans-serif;background:#1c2128;border:1px solid #30363d;border-radius:6px;color:#e6edf3;outline:none;transition:border-color .15s}
+.login-fg input:focus{border-color:#58a6ff}
+.login-btn{width:100%;padding:11px;background:#58a6ff;color:#000;border:none;border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:6px;transition:opacity .15s}
+.login-btn:hover{opacity:.85}
+.login-err{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3);padding:9px 14px;border-radius:6px;font-size:12px;margin-top:12px;display:none}
+.login-note{margin-top:20px;font-family:monospace;font-size:11px;color:#484f58;line-height:1.8;border-top:1px solid #30363d;padding-top:14px}
+
+.app{display:none;flex-direction:column;height:100vh}
+.topnav{background:#161b22;border-bottom:1px solid #30363d;display:flex;align-items:center;padding:0 20px;height:48px;flex-shrink:0}
+.nav-brand{font-family:monospace;font-size:13px;color:#58a6ff;letter-spacing:.1em;text-transform:uppercase;padding-right:24px;border-right:1px solid #30363d;margin-right:8px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.nav-brand::before{content:'○';color:#58a6ff;font-size:10px}
+.tab-btn{padding:0 16px;height:48px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;border:none;background:none;cursor:pointer;color:#8b949e;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:#e6edf3}
+.tab-btn.active{color:#58a6ff;border-bottom-color:#58a6ff}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.sync-indicator{font-family:monospace;font-size:11px;padding:3px 10px;border-radius:4px;transition:all .3s}
+.sync-idle{color:#484f58}
+.sync-loading{color:#d29922;background:rgba(210,153,34,.1)}
+.sync-ok{color:#3fb950;background:rgba(63,185,80,.1)}
+.sync-err{color:#f85149;background:rgba(248,81,73,.1)}
+.last-sync{font-family:monospace;font-size:10px;color:#484f58}
+.refresh-btn{font-family:monospace;font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:4px 12px;cursor:pointer;transition:all .15s}
+.refresh-btn:hover{color:#3fb950;border-color:#3fb950}
+.refresh-btn.spinning{color:#d29922;border-color:#d29922;pointer-events:none}
+.role-badge{font-family:monospace;font-size:10px;padding:3px 10px;border-radius:20px;letter-spacing:.05em}
+.role-admin{background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.role-manager{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+.topbar-user{font-family:monospace;font-size:11px;color:#8b949e}
+.logout-btn{font-family:monospace;font-size:11px;color:#8b949e;background:none;border:1px solid #30363d;border-radius:4px;padding:4px 12px;cursor:pointer;transition:all .15s}
+.logout-btn:hover{color:#e6edf3;border-color:#484f58}
+
+.content{flex:1;overflow-y:auto;padding:24px 28px;background:#0d1117}
+.tab-pane{display:none;max-width:1200px;margin:0 auto}
+.tab-pane.active{display:block}
+.page-head{margin-bottom:20px}
+.page-head h2{font-family:monospace;font-size:16px;color:#e6edf3;letter-spacing:.05em;text-transform:uppercase}
+.page-head p{font-size:12px;color:#8b949e;margin-top:4px}
+
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:22px}
+.metric{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 18px}
+.metric-label{font-family:monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8b949e;margin-bottom:8px}
+.metric-val{font-family:monospace;font-size:26px;font-weight:400}
+.metric-sub{font-family:monospace;font-size:11px;color:#484f58;margin-top:3px}
+.val-blue{color:#58a6ff} .val-green{color:#3fb950} .val-red{color:#f85149} .val-orange{color:#d29922}
+
+.form-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px 24px;margin-bottom:20px}
+.form-card-title{font-family:monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8b949e;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #30363d}
+.frow{display:grid;gap:12px;margin-bottom:12px}
+.frow.c2{grid-template-columns:1fr 1fr}
+.frow.c3{grid-template-columns:1fr 1fr 1fr}
+.frow.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+.frow.c5{grid-template-columns:2fr 3fr 2fr 2fr 2fr}
+.fg label{display:block;font-family:monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8b949e;margin-bottom:5px}
+input[type=text],input[type=number],input[type=date],input[type=password],select,textarea{width:100%;padding:8px 11px;font-size:12px;font-family:'Inter',sans-serif;background:#1c2128;border:1px solid #30363d;border-radius:5px;color:#e6edf3;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:#58a6ff}
+input[readonly]{background:#0d1117;color:#8b949e;cursor:default}
+select{cursor:pointer;appearance:none;padding-right:28px}
+select option{background:#1c2128}
+.type-toggle{display:flex;border:1px solid #30363d;border-radius:5px;overflow:hidden;height:36px}
+.type-btn{flex:1;font-family:monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:none;background:#1c2128;color:#8b949e;cursor:pointer;transition:all .15s}
+.type-btn.active-in{background:rgba(63,185,80,.15);color:#3fb950;border-right:1px solid #30363d}
+.type-btn.active-out{background:rgba(248,81,73,.15);color:#f85149}
+.btn{padding:8px 18px;font-family:monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;cursor:pointer;border:1px solid #30363d;transition:all .15s}
+.btn-primary{background:#58a6ff;color:#000;border-color:#58a6ff}
+.btn-primary:hover{opacity:.85}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-edit{background:rgba(88,166,255,.1);color:#58a6ff;border-color:rgba(88,166,255,.3)}
+.btn-edit:hover{background:rgba(88,166,255,.2)}
+.btn-del{background:rgba(248,81,73,.1);color:#f85149;border-color:rgba(248,81,73,.3)}
+.btn-del:hover{background:rgba(248,81,73,.2)}
+.btn-cancel-edit{background:#1c2128;color:#8b949e;border-color:#30363d}
+.form-foot{display:flex;align-items:center;gap:12px;margin-top:16px}
+.notif{padding:8px 14px;border-radius:5px;font-family:monospace;font-size:11px}
+.notif-ok{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.notif-err{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+.notif-warn{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+
+.table-card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:20px}
+.table-head-bar{padding:12px 18px;border-bottom:1px solid #30363d;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.table-head-title{font-family:monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8b949e}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{font-family:monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8b949e;padding:9px 14px;border-bottom:1px solid #30363d;background:#1c2128;text-align:left;white-space:nowrap}
+tbody td{padding:9px 14px;border-bottom:1px solid #30363d;color:#e6edf3;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#1c2128}
+tfoot td{padding:9px 14px;background:#1c2128;font-weight:600;border-top:1px solid #484f58;font-family:monospace;font-size:11px}
+.mono{font-family:monospace}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;white-space:nowrap;letter-spacing:.04em}
+.b-green{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.b-red{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+.b-amber{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+.b-blue{background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.pid-chip{font-family:monospace;font-size:11px;background:#1c2128;padding:2px 7px;border-radius:4px;border:1px solid #30363d;display:inline-block;color:#58a6ff}
+.action-btns{display:flex;gap:4px;white-space:nowrap}
+.loading-row td{text-align:center;padding:24px;color:#8b949e;font-family:monospace;font-size:11px}
+
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;display:none;align-items:center;justify-content:center}
+.confirm-overlay.open{display:flex}
+.confirm-box{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:28px 30px;width:360px;text-align:center}
+.confirm-box h3{font-family:monospace;font-size:14px;color:#e6edf3;margin-bottom:10px}
+.confirm-box p{font-size:12px;color:#8b949e;margin-bottom:22px;line-height:1.6}
+.confirm-btns{display:flex;gap:10px;justify-content:center}
+.btn-confirm-del{background:#f85149;color:#fff;border:none;padding:8px 22px;border-radius:5px;font-family:monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.btn-cancel-del{background:#1c2128;color:#8b949e;border:1px solid #30363d;padding:8px 22px;border-radius:5px;font-family:monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+
+.input-section{background:#1c2128;border:1px solid #30363d;border-radius:6px;padding:14px;margin-bottom:4px}
+.input-row-head{display:grid;grid-template-columns:160px 1fr 160px 34px;gap:10px;margin-bottom:6px;padding:0 2px}
+.input-row-head span{font-family:monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#484f58}
+.input-row{display:grid;grid-template-columns:160px 1fr 160px 34px;gap:10px;align-items:end;margin-bottom:7px}
+.del-btn{width:34px;height:34px;border:1px solid #30363d;background:none;border-radius:5px;cursor:pointer;color:#484f58;font-size:16px;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.del-btn:hover{background:rgba(248,81,73,.15);color:#f85149;border-color:rgba(248,81,73,.3)}
+.add-row-btn{display:inline-flex;align-items:center;gap:6px;font-family:monospace;font-size:11px;letter-spacing:.06em;color:#58a6ff;background:none;border:1px dashed rgba(88,166,255,.4);border-radius:5px;padding:7px 14px;cursor:pointer;transition:all .15s;margin-top:4px}
+.add-row-btn:hover{background:rgba(88,166,255,.08)}
+.prod-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1c2128;border:1px solid #30363d;border-radius:5px;margin-top:10px;font-family:monospace;font-size:11px;color:#8b949e}
+.prod-footer strong{color:#e6edf3}
+
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.stock-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 18px;transition:border-color .15s}
+.stock-card:hover{border-color:#484f58}
+.stock-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
+.stock-pid{font-family:monospace;font-size:11px;color:#58a6ff;background:rgba(88,166,255,.08);padding:2px 8px;border-radius:4px;border:1px solid rgba(88,166,255,.2)}
+.stock-name{font-size:14px;font-weight:500;color:#e6edf3;margin-bottom:1px}
+.stock-unit{font-family:monospace;font-size:11px;color:#484f58;margin-bottom:10px}
+.stock-val-line{font-family:monospace;font-size:11px;color:#8b949e;margin-bottom:10px;min-height:16px}
+.stock-bar-wrap{background:#1c2128;border-radius:3px;height:3px;overflow:hidden;margin-bottom:7px}
+.stock-bar{height:100%;border-radius:3px;transition:width .4s}
+.stock-meta-row{display:flex;justify-content:space-between;font-family:monospace;font-size:10px;color:#484f58}
+
+.costing-card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.costing-hdr{padding:12px 18px;background:#1c2128;border-bottom:1px solid #30363d;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.costing-hdr-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.costing-prid{font-family:monospace;font-size:13px;color:#58a6ff}
+.costing-date{font-family:monospace;font-size:11px;color:#484f58}
+.costing-total{font-family:monospace;font-size:18px;color:#3fb950}
+.costing-total-lbl{font-family:monospace;font-size:10px;color:#484f58;text-align:right;margin-bottom:2px;letter-spacing:.06em;text-transform:uppercase}
+
+.filter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filter-row input,.filter-row select{width:auto;min-width:120px;flex:1;max-width:200px;font-size:11px;padding:6px 10px}
+.empty{text-align:center;padding:36px 20px;color:#484f58;font-family:monospace}
+.empty-icon{font-size:22px;margin-bottom:8px}
+.empty p{font-size:11px;letter-spacing:.05em}
+.sec-divider{border:none;border-top:1px solid #30363d;margin:16px 0}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">○ Stock Inventory</div>
+    <div class="login-title">Sign in</div>
+    <div class="login-fg"><label>Username</label><input type="text" id="l-user" placeholder="Enter username" autocomplete="username"></div>
+    <div class="login-fg"><label>Password</label><input type="password" id="l-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="login-err">Incorrect username or password</div>
+
+  </div>
+</div>
+
+<div class="app" id="app">
+  <nav class="topnav">
+    <div class="nav-brand">Stock System</div>
+    <button class="tab-btn active" onclick="showTab('transactions')">Transactions</button>
+    <button class="tab-btn" onclick="showTab('production')">Production</button>
+    <button class="tab-btn" onclick="showTab('stock')">Stock Summary</button>
+    <button class="tab-btn" id="tab-btn-costing" style="display:none" onclick="showTab('costing')">Batch Costing</button>
+    <div class="nav-right">
+      <span class="last-sync" id="last-sync"></span>
+      <span class="sync-indicator sync-idle" id="sync-status">● synced</span>
+      <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
+      <span class="role-badge" id="role-badge"></span>
+      <span class="topbar-user" id="topbar-user"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="content">
+
+    <div id="tab-transactions" class="tab-pane active">
+      <div class="page-head"><h2>Transactions</h2><p>Record inward stock purchases and outward usage</p></div>
+      <div class="form-card">
+        <div class="form-card-title" id="tx-form-mode-label">New transaction entry</div>
+        <div class="frow c5">
+          <div class="fg"><label>Product ID</label><input type="text" id="t-pid" placeholder="e.g. HAC-001" oninput="txAutoFill()" style="font-family:monospace;text-transform:uppercase"></div>
+          <div class="fg"><label>Product name</label><input type="text" id="t-name" placeholder="e.g. H Acid"></div>
+          <div class="fg"><label>Date</label><input type="date" id="t-date"></div>
+          <div class="fg"><label>Unit</label><select id="t-unit"><option>kg</option><option>litre</option><option>gram</option><option>piece</option><option>ton</option><option>metre</option></select></div>
+          <div class="fg"><label>Type</label>
+            <div class="type-toggle">
+              <button class="type-btn active-in" id="btn-in" onclick="setTxType('inward')">↓ Inward</button>
+              <button class="type-btn" id="btn-out" onclick="setTxType('outward')">↑ Outward</button>
+            </div>
+          </div>
+        </div>
+        <div class="frow c4">
+          <div class="fg"><label>Quantity</label><input type="number" id="t-qty" placeholder="0" min="0" step="0.001" oninput="calcTxTotal()"></div>
+          <div class="fg"><label>Price / unit (Rs)</label><input type="number" id="t-price" placeholder="0.00" min="0" step="0.01" oninput="calcTxTotal()"></div>
+          <div class="fg"><label>Total value — auto</label><input type="number" id="t-total" readonly placeholder="auto"></div>
+          <div class="fg"><label>Invoice / Reference</label><input type="text" id="t-ref" placeholder="e.g. INV-5521"></div>
+        </div>
+        <div class="frow c2" style="margin-bottom:0">
+          <div class="fg"><label>Notes</label><input type="text" id="t-notes" placeholder="Any notes"></div>
+        </div>
+        <div class="form-foot">
+          <button class="btn btn-primary" id="tx-submit-btn" onclick="submitTx()">Save transaction</button>
+          <button class="btn btn-sm btn-cancel-edit" id="tx-cancel-btn" style="display:none" onclick="cancelTxEdit()">Cancel edit</button>
+          <div id="tx-notif" style="display:none"></div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-head-bar">
+          <span class="table-head-title">Transaction register</span>
+          <div class="filter-row">
+            <input type="text" id="tx-search" placeholder="Search ID / name / invoice..." oninput="renderTxTable()">
+            <select id="tx-type-filter" onchange="renderTxTable()">
+              <option value="">All types</option>
+              <option value="inward">Inward only</option>
+              <option value="outward">Outward only</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Date</th><th>Product ID</th><th>Product name</th><th>Type</th><th>Qty</th><th>Unit</th><th>Price/unit</th><th>Total value</th><th>Invoice/ref</th><th>Notes</th><th>Actions</th></tr></thead>
+            <tbody id="tx-tb"><tr class="loading-row"><td colspan="12">Loading data...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-production" class="tab-pane">
+      <div class="page-head"><h2>Production</h2><p>Log a production run — output produced and raw materials consumed</p></div>
+      <div class="form-card">
+        <div class="form-card-title" id="prod-form-mode-label">New production entry</div>
+        <div class="frow c4">
+          <div class="fg"><label>Production ID</label><input type="text" id="p-id" placeholder="e.g. PRD-001" style="font-family:monospace"></div>
+          <div class="fg"><label>Date</label><input type="date" id="p-date"></div>
+          <div class="fg"><label>Batch / lot ref</label><input type="text" id="p-batch" placeholder="e.g. BATCH-001"></div>
+          <div class="fg"><label>Notes</label><input type="text" id="p-notes" placeholder=""></div>
+        </div>
+        <hr class="sec-divider">
+        <div class="form-card-title" style="margin-bottom:11px">Output — product produced</div>
+        <div class="frow c3" style="margin-bottom:0">
+          <div class="fg"><label>Output product ID</label><input type="text" id="p-out-pid" placeholder="e.g. BLK-005" style="font-family:monospace;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="fg"><label>Output product name</label><input type="text" id="p-out-name" placeholder="e.g. Black 5"></div>
+          <div class="fg"><label>Output quantity (kg)</label><input type="number" id="p-out-qty" placeholder="0" min="0" step="0.001"></div>
+        </div>
+        <hr class="sec-divider">
+        <div class="form-card-title" style="margin-bottom:11px">Input raw materials consumed <span style="font-weight:400;color:#484f58;font-size:10px">up to 10 rows — product ID auto-fills name</span></div>
+        <div class="input-section">
+          <div class="input-row-head"><span>Product ID</span><span>Product name</span><span>Qty used (kg)</span><span></span></div>
+          <div id="prod-rows"></div>
+          <button class="add-row-btn" id="add-row-btn" onclick="addInputRow()">+ Add material row</button>
+        </div>
+        <div class="prod-footer"><span>Input rows filled</span><strong id="prod-row-count">0 rows</strong></div>
+        <div class="form-foot">
+          <button class="btn btn-primary" id="prod-submit-btn" onclick="submitProd()">Save production entry</button>
+          <button class="btn btn-sm btn-cancel-edit" id="prod-cancel-btn" style="display:none" onclick="cancelProdEdit()">Cancel edit</button>
+          <div id="prod-notif" style="display:none"></div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-head-bar">
+          <span class="table-head-title">Production history</span>
+          <div class="filter-row"><input type="text" id="prod-search" placeholder="Search ID / output / batch..." oninput="renderProdTable()"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Date</th><th>Production ID</th><th>Output product</th><th>Output ID</th><th>Output qty</th><th>Inputs used</th><th>Batch ref</th><th>Notes</th><th>Actions</th></tr></thead>
+            <tbody id="prod-tb"><tr class="loading-row"><td colspan="10">Loading data...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-stock" class="tab-pane">
+      <div class="page-head"><h2>Stock Summary</h2><p>Current raw material balances</p></div>
+      <div class="metrics-row">
+        <div class="metric"><div class="metric-label">Raw materials</div><div class="metric-val val-blue" id="s-count">0</div></div>
+        <div class="metric" id="metric-val-card"><div class="metric-label">Total stock value</div><div class="metric-val val-green" id="s-val">Rs 0</div></div>
+        <div class="metric"><div class="metric-label">Out of stock</div><div class="metric-val val-red" id="s-out">0</div><div class="metric-sub">products</div></div>
+      </div>
+      <div class="summary-grid" id="stock-grid">
+        <div class="stock-card" style="grid-column:1/-1"><div class="empty"><div class="empty-icon">o</div><p>Loading...</p></div></div>
+      </div>
+    </div>
+
+    <div id="tab-costing" class="tab-pane">
+      <div class="page-head"><h2>Batch Costing</h2><p>Raw material cost breakdown per production batch — admin only</p></div>
+      <div id="costing-list"><div class="empty"><div class="empty-icon">Rs</div><p>Loading...</p></div></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirm-del">
+  <div class="confirm-box">
+    <h3>Delete entry?</h3>
+    <p id="confirm-msg">This action cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn-cancel-del" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-confirm-del" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var SCRIPT_URL = "<?= scriptUrl ?>";
+
+var ACCOUNTS = {
+  admin:   { password: 'admin123', role: 'admin',   displayName: 'Admin'   },
+  manager: { password: 'mgr456',   role: 'manager', displayName: 'Manager' }
+};
+
+var currentUser       = null;
+var transactions      = [];
+var productions       = [];
+var inputRows         = [];
+var txType            = 'inward';
+var editingTxId       = null;
+var editingProdId     = null;
+var pendingDeleteId   = null;
+var pendingDeleteType = null;
+var autoRefreshTimer  = null;
+
+// ── AUTH ──
+function doLogin() {
+  var u   = document.getElementById('l-user').value.trim().toLowerCase();
+  var p   = document.getElementById('l-pass').value;
+  var acc = ACCOUNTS[u];
+  if (!acc || acc.password !== p) {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('l-pass').value = '';
+    return;
+  }
+  currentUser = { username: u, role: acc.role, displayName: acc.displayName };
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display          = 'flex';
+  document.getElementById('topbar-user').textContent    = acc.displayName;
+  document.getElementById('role-badge').textContent     = acc.role.toUpperCase();
+  document.getElementById('role-badge').className       = 'role-badge role-' + acc.role;
+  applyRoleUI();
+  document.getElementById('t-date').valueAsDate = new Date();
+  document.getElementById('p-date').valueAsDate = new Date();
+  addInputRow(); addInputRow(); addInputRow();
+  
+  loadAll();
+  // Start auto-refresh every 2 minutes
+  autoRefreshTimer = setInterval(function() {
+    if (currentUser) {
+      loadAll();
+    }
+  }, 120000);
+}
+
+function doLogout() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  currentUser = null; transactions = []; productions = []; inputRows = [];
+  txType = 'inward'; editingTxId = null; editingProdId = null;
+  document.getElementById('app').style.display          = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-user').value = '';
+  document.getElementById('l-pass').value = '';
+  document.getElementById('login-err').style.display = 'none';
+  document.getElementById('last-sync').textContent = '';
+  showTab('transactions');
+}
+
+function applyRoleUI() {
+  var admin = currentUser.role === 'admin';
+  document.getElementById('tab-btn-costing').style.display = admin ? '' : 'none';
+  document.getElementById('metric-val-card').style.display = admin ? '' : 'none';
+}
+
+// ── SYNC / REFRESH ──
+function syncStatus(state, msg) {
+  var el = document.getElementById('sync-status');
+  el.className   = 'sync-indicator sync-' + state;
+  el.textContent = '● ' + msg;
+}
+
+function updateLastSync() {
+  var now  = new Date();
+  var h    = now.getHours().toString().padStart(2, '0');
+  var m    = now.getMinutes().toString().padStart(2, '0');
+  var s    = now.getSeconds().toString().padStart(2, '0');
+  document.getElementById('last-sync').textContent = 'Last sync: ' + h + ':' + m + ':' + s;
+}
+
+function manualRefresh() {
+  var btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  btn.textContent = '↻ Syncing...';
+  loadAll(function() {
+    btn.classList.remove('spinning');
+    btn.textContent = '↻ Refresh';
+  });
+}
+
+// ── API ──
+// pendingSaves tracks how many saves are in flight
+var pendingSaves = 0;
+
+function apiCall(params, callback) {
+  pendingSaves++;
+  syncStatus("loading", "saving...");
+  var qs = Object.keys(params).map(function(k) {
+    return k + "=" + encodeURIComponent(params[k] === null || params[k] === undefined ? "" : params[k]);
+  }).join("&");
+  var url = SCRIPT_URL + "?" + qs;
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", url, true);
+  xhr.onload = function() {
+    pendingSaves--;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (pendingSaves === 0) {
+        syncStatus("ok", "synced");
+        updateLastSync();
+        setTimeout(function() { syncStatus("idle", "synced"); }, 3000);
+      }
+      if (callback) callback(data);
+    } catch(e) {
+      syncStatus("err", "save error");
+      console.error("apiCall parse error:", e);
+    }
+  };
+  xhr.onerror = function() {
+    pendingSaves--;
+    syncStatus("err", "save error — check connection");
+    console.error("apiCall network error");
+  };
+  xhr.send();
+}
+
+// Warn user if they try to close while a save is in progress
+window.addEventListener("beforeunload", function(e) {
+  if (pendingSaves > 0) {
+    var msg = "Data is still being saved to Google Sheets. Please wait a moment before closing.";
+    e.returnValue = msg;
+    return msg;
+  }
+});
+
+
+function loadAll(doneCallback) {
+  syncStatus('loading', 'loading...');
+  var done = 0;
+  var txData = []; var prodData = [];
+  function finish() {
+    done++;
+    if (done === 2) {
+      transactions = txData;
+      productions  = prodData;
+      
+      syncStatus('ok', 'synced');
+      updateLastSync();
+      setTimeout(function() { syncStatus('idle', 'synced'); }, 2000);
+      renderTxTable();
+      renderProdTable();
+      // Refresh active tab views
+      var activeTab = document.querySelector('.tab-pane.active');
+      if (activeTab) {
+        if (activeTab.id === 'tab-stock')   renderStock();
+        if (activeTab.id === 'tab-costing') renderCosting();
+      }
+      if (doneCallback) doneCallback();
+    }
+  }
+  fetch(SCRIPT_URL + '?action=getTx')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && d.ok) txData = d.data || []; finish(); })
+    .catch(function(e) { console.error('getTx error:', e); syncStatus('err', 'load error'); finish(); });
+  fetch(SCRIPT_URL + '?action=getProd')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && d.ok) prodData = d.data || []; finish(); })
+    .catch(function(e) { console.error('getProd error:', e); finish(); });
+}
+
+// ── TABS ──
+function showTab(t) {
+  document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('tab-' + t).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'" + t + "'") > -1) b.classList.add('active');
+  });
+  if (t === 'stock')   renderStock();
+  if (t === 'costing') renderCosting();
+}
+
+// ── HELPERS ──
+function fmt(n, d)  { d = d === undefined ? 3 : d; return parseFloat(n || 0).toFixed(d); }
+function fmtM(n)    { return 'Rs ' + parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+function pidChip(p) { return '<span class="pid-chip">' + p + '</span>'; }
+function isAdmin()  { return currentUser && currentUser.role === 'admin'; }
+
+function notify(id, msg, type) {
+  var el = document.getElementById(id);
+  el.className     = 'notif notif-' + type;
+  el.textContent   = msg;
+  el.style.display = 'inline-block';
+  setTimeout(function() { el.style.display = 'none'; }, 4000);
+}
+
+function setTxType(t) {
+  txType = t;
+  document.getElementById('btn-in').className  = 'type-btn' + (t === 'inward'  ? ' active-in'  : '');
+  document.getElementById('btn-out').className = 'type-btn' + (t === 'outward' ? ' active-out' : '');
+}
+
+// ── STOCK HELPERS ──
+function getStock(pid) {
+  pid = pid.toUpperCase();
+  return transactions.filter(function(t) { return t.pid === pid; })
+    .reduce(function(s, t) { return t.type === 'inward' ? s + parseFloat(t.qty) : s - parseFloat(t.qty); }, 0);
+}
+function getAvgPrice(pid) {
+  pid = pid.toUpperCase();
+  var inw = transactions.filter(function(t) { return t.pid === pid && t.type === 'inward' && parseFloat(t.price) > 0; });
+  if (!inw.length) return 0;
+  var tV = inw.reduce(function(s, t) { return s + parseFloat(t.total); }, 0);
+  var tQ = inw.reduce(function(s, t) { return s + parseFloat(t.qty);   }, 0);
+  return tQ > 0 ? tV / tQ : 0;
+}
+function getLastUnit(pid) {
+  for (var i = transactions.length - 1; i >= 0; i--) {
+    if (transactions[i].pid === pid.toUpperCase()) return transactions[i].unit;
+  }
+  return 'kg';
+}
+function getLastName(pid) {
+  for (var i = transactions.length - 1; i >= 0; i--) {
+    if (transactions[i].pid === pid.toUpperCase()) return transactions[i].name;
+  }
+  return pid;
+}
+function getOutputPids() {
+  var s = {};
+  productions.forEach(function(p) { s[p.outPid.toUpperCase()] = true; });
+  return s;
+}
+
+// ── TRANSACTIONS ──
+function txAutoFill() {
+  var pid = document.getElementById('t-pid').value.trim().toUpperCase();
+  document.getElementById('t-pid').value = pid;
+  if (!pid) return;
+  for (var i = transactions.length - 1; i >= 0; i--) {
+    if (transactions[i].pid === pid) {
+      if (!document.getElementById('t-name').value) document.getElementById('t-name').value = transactions[i].name;
+      document.getElementById('t-unit').value = transactions[i].unit;
+      break;
+    }
+  }
+}
+
+function calcTxTotal() {
+  var q = parseFloat(document.getElementById('t-qty').value)   || 0;
+  var p = parseFloat(document.getElementById('t-price').value) || 0;
+  document.getElementById('t-total').value = (q > 0 && p > 0) ? (q * p).toFixed(2) : '';
+}
+
+function submitTx() {
+  var pid   = document.getElementById('t-pid').value.trim().toUpperCase();
+  var name  = document.getElementById('t-name').value.trim();
+  var date  = document.getElementById('t-date').value;
+  var unit  = document.getElementById('t-unit').value;
+  var qty   = parseFloat(document.getElementById('t-qty').value)   || 0;
+  var price = parseFloat(document.getElementById('t-price').value) || 0;
+  var ref   = document.getElementById('t-ref').value.trim();
+  var notes = document.getElementById('t-notes').value.trim();
+  if (!pid)     { notify('tx-notif', 'Product ID is required',   'err'); return; }
+  if (!name)    { notify('tx-notif', 'Product name is required', 'err'); return; }
+  if (!date)    { notify('tx-notif', 'Date is required',         'err'); return; }
+  if (qty <= 0) { notify('tx-notif', 'Quantity must be > 0',     'err'); return; }
+  if (txType === 'outward') {
+    var bal = getStock(pid);
+    if (qty > bal + 0.0001) { notify('tx-notif', 'Insufficient stock — only ' + fmt(bal) + ' ' + unit + ' available', 'err'); return; }
+  }
+  var id  = editingTxId || (Date.now() + Math.random()).toString();
+  var rec = { id:id, pid:pid, name:name, date:date, type:txType, qty:qty, unit:unit, price:price, total:qty*price, ref:ref, notes:notes };
+  if (editingTxId) {
+    for (var i = 0; i < transactions.length; i++) { if (transactions[i].id == editingTxId) { transactions[i] = rec; break; } }
+    apiCall({ action:'updateTx', id:id, pid:pid, name:name, date:date, type:txType, qty:qty, unit:unit, price:price, total:qty*price, ref:ref, notes:notes });
+    notify('tx-notif', 'Transaction updated', 'ok');
+    cancelTxEdit();
+  } else {
+    transactions.push(rec);
+    apiCall({ action:'saveTx', id:id, pid:pid, name:name, date:date, type:txType, qty:qty, unit:unit, price:price, total:qty*price, ref:ref, notes:notes });
+    notify('tx-notif', 'Transaction saved', 'ok');
+    ['t-pid','t-name','t-qty','t-price','t-total','t-ref','t-notes'].forEach(function(i) { document.getElementById(i).value = ''; });
+    setTxType('inward');
+  }
+  renderTxTable();
+}
+
+function editTx(id) {
+  var t = null;
+  for (var i = 0; i < transactions.length; i++) { if (transactions[i].id == id) { t = transactions[i]; break; } }
+  if (!t) return;
+  editingTxId = id;
+  document.getElementById('t-pid').value   = t.pid;
+  document.getElementById('t-name').value  = t.name;
+  document.getElementById('t-date').value  = t.date;
+  document.getElementById('t-unit').value  = t.unit;
+  document.getElementById('t-qty').value   = t.qty;
+  document.getElementById('t-price').value = t.price;
+  document.getElementById('t-total').value = t.total;
+  document.getElementById('t-ref').value   = t.ref   || '';
+  document.getElementById('t-notes').value = t.notes || '';
+  setTxType(t.type);
+  document.getElementById('tx-form-mode-label').textContent = 'Editing transaction — ' + t.pid;
+  document.getElementById('tx-submit-btn').textContent      = 'Update transaction';
+  document.getElementById('tx-cancel-btn').style.display    = '';
+  showTab('transactions');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelTxEdit() {
+  editingTxId = null;
+  ['t-pid','t-name','t-qty','t-price','t-total','t-ref','t-notes'].forEach(function(i) { document.getElementById(i).value = ''; });
+  setTxType('inward');
+  document.getElementById('tx-form-mode-label').textContent = 'New transaction entry';
+  document.getElementById('tx-submit-btn').textContent      = 'Save transaction';
+  document.getElementById('tx-cancel-btn').style.display    = 'none';
+}
+
+function renderTxTable() {
+  var q    = (document.getElementById('tx-search').value || '').toLowerCase();
+  var tf   = document.getElementById('tx-type-filter').value;
+  var list = transactions.filter(function(t) {
+    return (!tf || t.type === tf) &&
+      (!q || t.pid.toLowerCase().indexOf(q) > -1 || t.name.toLowerCase().indexOf(q) > -1 || (t.ref||'').toLowerCase().indexOf(q) > -1);
+  }).slice().reverse();
+  var tb = document.getElementById('tx-tb');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="12"><div class="empty"><div class="empty-icon">+</div><p>No transactions yet</p></div></td></tr>'; return; }
+  tb.innerHTML = list.map(function(t, i) {
+    var badge = t.type === 'inward' ? '<span class="badge b-green">IN</span>' : '<span class="badge b-red">OUT</span>';
+    return '<tr>' +
+      '<td class="mono" style="color:#484f58;font-size:11px">' + (list.length - i) + '</td>' +
+      '<td class="mono">' + t.date + '</td>' +
+      '<td>' + pidChip(t.pid) + '</td>' +
+      '<td>' + t.name + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td class="mono" style="color:#3fb950">' + fmt(t.qty) + '</td>' +
+      '<td style="color:#484f58">' + t.unit + '</td>' +
+      '<td class="mono">' + (t.price > 0 ? fmtM(t.price) : '-') + '</td>' +
+      '<td class="mono" style="color:#d29922">' + (t.total > 0 ? fmtM(t.total) : '-') + '</td>' +
+      '<td class="mono" style="font-size:11px;color:#8b949e">' + (t.ref || '-') + '</td>' +
+      '<td style="font-size:11px;color:#8b949e">' + (t.notes || '-') + '</td>' +
+      '<td><div class="action-btns">' +
+        '<button class="btn btn-sm btn-edit" onclick="editTx(\'' + t.id + '\')">Edit</button>' +
+        '<button class="btn btn-sm btn-del" onclick="askDelete(\'tx\',\'' + t.id + '\',\'' + t.pid + '\')">Del</button>' +
+      '</div></td></tr>';
+  }).join('');
+}
+
+// ── PRODUCTION ──
+function addInputRow() {
+  if (inputRows.length >= 10) return;
+  inputRows.push({ rid: Date.now() + Math.random(), pid: '', name: '', qty: '' });
+  renderInputRows();
+  document.getElementById('add-row-btn').style.display = inputRows.length >= 10 ? 'none' : 'inline-flex';
+}
+function removeInputRow(rid) {
+  inputRows = inputRows.filter(function(r) { return r.rid !== rid; });
+  renderInputRows();
+  document.getElementById('add-row-btn').style.display = inputRows.length >= 10 ? 'none' : 'inline-flex';
+}
+function renderInputRows() {
+  document.getElementById('prod-rows').innerHTML = inputRows.map(function(r) {
+    return '<div class="input-row">' +
+      '<input type="text" value="' + r.pid + '" placeholder="e.g. HAC-001" style="font-family:monospace;font-size:12px;text-transform:uppercase" oninput="rowPidChange(' + r.rid + ',this.value)">' +
+      '<input type="text" value="' + r.name + '" id="rname-' + r.rid + '" placeholder="Auto-fills" readonly style="font-size:12px;color:#8b949e">' +
+      '<input type="number" value="' + r.qty + '" placeholder="0" min="0" step="0.001" oninput="rowQtyChange(' + r.rid + ',this.value)">' +
+      '<button class="del-btn" onclick="removeInputRow(' + r.rid + ')">x</button>' +
+    '</div>';
+  }).join('');
+  updateRowCount();
+}
+function rowPidChange(rid, val) {
+  var row = null;
+  for (var i = 0; i < inputRows.length; i++) { if (inputRows[i].rid === rid) { row = inputRows[i]; break; } }
+  if (!row) return;
+  row.pid = val.toUpperCase();
+  var found = null;
+  for (var j = transactions.length - 1; j >= 0; j--) {
+    if (transactions[j].pid === val.toUpperCase() && transactions[j].type === 'inward') { found = transactions[j]; break; }
+  }
+  var el = document.getElementById('rname-' + rid);
+  row.name = found ? found.name : '';
+  if (el) el.value = row.name;
+  updateRowCount();
+}
+function rowQtyChange(rid, val) {
+  for (var i = 0; i < inputRows.length; i++) { if (inputRows[i].rid === rid) { inputRows[i].qty = val; break; } }
+  updateRowCount();
+}
+function updateRowCount() {
+  var n = inputRows.filter(function(r) { return r.pid && parseFloat(r.qty) > 0; }).length;
+  document.getElementById('prod-row-count').textContent = n + (n === 1 ? ' row' : ' rows');
+}
+
+function submitProd() {
+  var prid   = document.getElementById('p-id').value.trim();
+  var date   = document.getElementById('p-date').value;
+  var outPid = document.getElementById('p-out-pid').value.trim().toUpperCase();
+  var outNm  = document.getElementById('p-out-name').value.trim();
+  var outQty = parseFloat(document.getElementById('p-out-qty').value) || 0;
+  var batch  = document.getElementById('p-batch').value.trim();
+  var notes  = document.getElementById('p-notes').value.trim();
+  if (!prid)     { notify('prod-notif', 'Production ID required',       'err'); return; }
+  if (!date)     { notify('prod-notif', 'Date required',                'err'); return; }
+  if (!outPid)   { notify('prod-notif', 'Output product ID required',   'err'); return; }
+  if (!outNm)    { notify('prod-notif', 'Output product name required', 'err'); return; }
+  if (outQty<=0) { notify('prod-notif', 'Output qty must be > 0',       'err'); return; }
+  var validRows = inputRows.filter(function(r) { return r.pid && parseFloat(r.qty) > 0; })
+    .map(function(r) { return { pid: r.pid.toUpperCase(), name: r.name || r.pid, qty: parseFloat(r.qty) }; });
+  if (!validRows.length) { notify('prod-notif', 'Add at least one input material', 'err'); return; }
+  for (var i = 0; i < validRows.length; i++) {
+    var bal = getStock(validRows[i].pid);
+    if (validRows[i].qty > bal + 0.0001) {
+      notify('prod-notif', 'Insufficient stock for ' + validRows[i].pid + ' — need ' + fmt(validRows[i].qty) + ', have ' + fmt(bal), 'err');
+      return;
+    }
+  }
+  var inputsWithCost = validRows.map(function(r) {
+    var uc = getAvgPrice(r.pid);
+    return { pid:r.pid, name:r.name, qty:r.qty, unitCost:uc, totalCost:r.qty*uc };
+  });
+  var totalRMCost = inputsWithCost.reduce(function(s, r) { return s + r.totalCost; }, 0);
+  var now  = Date.now();
+  var id   = editingProdId || (now + Math.random()).toString();
+  var rec  = { id:id, prid:prid, date:date, outPid:outPid, outNm:outNm, outQty:outQty, batch:batch, notes:notes, inputs:inputsWithCost, totalRMCost:totalRMCost };
+  if (editingProdId) {
+    var oldProd = null;
+    for (var j = 0; j < productions.length; j++) { if (productions[j].id == editingProdId) { oldProd = productions[j]; break; } }
+    if (oldProd) transactions = transactions.filter(function(t) { return t.ref !== oldProd.prid; });
+    for (var k = 0; k < productions.length; k++) { if (productions[k].id == editingProdId) { productions[k] = rec; break; } }
+    apiCall({ action:'updateProd', id:id, prid:prid, date:date, outPid:outPid, outNm:outNm, outQty:outQty, batch:batch, notes:notes, inputsJson:JSON.stringify(inputsWithCost), totalRMCost:totalRMCost });
+    notify('prod-notif', 'Production entry updated', 'ok');
+    cancelProdEdit();
+  } else {
+    productions.push(rec);
+    apiCall({ action:'saveProd', id:id, prid:prid, date:date, outPid:outPid, outNm:outNm, outQty:outQty, batch:batch, notes:notes, inputsJson:JSON.stringify(inputsWithCost), totalRMCost:totalRMCost });
+    notify('prod-notif', 'Production entry ' + prid + ' saved', 'ok');
+    ['p-id','p-out-pid','p-out-name','p-out-qty','p-batch','p-notes'].forEach(function(i) { document.getElementById(i).value = ''; });
+    inputRows = []; addInputRow(); addInputRow(); addInputRow();
+  }
+  validRows.forEach(function(r, i) {
+    var txRec = { id:(now+i+0.1).toString(), pid:r.pid, name:r.name, date:date, type:'outward', qty:r.qty, unit:'kg', price:0, total:0, ref:prid, notes:'Production - ' + outNm };
+    transactions.push(txRec);
+    if (!editingProdId) apiCall({ action:'saveTx', id:txRec.id, pid:r.pid, name:r.name, date:date, type:'outward', qty:r.qty, unit:'kg', price:0, total:0, ref:prid, notes:'Production - ' + outNm });
+  });
+  var outRec = { id:(now+99).toString(), pid:outPid, name:outNm, date:date, type:'inward', qty:outQty, unit:'kg', price:0, total:0, ref:prid, notes:'Output' + (batch ? ' - ' + batch : '') };
+  transactions.push(outRec);
+  if (!editingProdId) apiCall({ action:'saveTx', id:outRec.id, pid:outPid, name:outNm, date:date, type:'inward', qty:outQty, unit:'kg', price:0, total:0, ref:prid, notes:outRec.notes });
+  renderTxTable();
+  renderProdTable();
+}
+
+function editProd(id) {
+  var p = null;
+  for (var i = 0; i < productions.length; i++) { if (productions[i].id == id) { p = productions[i]; break; } }
+  if (!p) return;
+  editingProdId = id;
+  document.getElementById('p-id').value       = p.prid;
+  document.getElementById('p-date').value     = p.date;
+  document.getElementById('p-out-pid').value  = p.outPid;
+  document.getElementById('p-out-name').value = p.outNm;
+  document.getElementById('p-out-qty').value  = p.outQty;
+  document.getElementById('p-batch').value    = p.batch  || '';
+  document.getElementById('p-notes').value    = p.notes  || '';
+  inputRows = [];
+  (p.inputs || []).forEach(function(r) { inputRows.push({ rid: Date.now() + Math.random(), pid: r.pid, name: r.name, qty: r.qty }); });
+  if (!inputRows.length) { addInputRow(); addInputRow(); addInputRow(); }
+  renderInputRows();
+  document.getElementById('prod-form-mode-label').textContent = 'Editing production - ' + p.prid;
+  document.getElementById('prod-submit-btn').textContent      = 'Update production entry';
+  document.getElementById('prod-cancel-btn').style.display    = '';
+  showTab('production');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelProdEdit() {
+  editingProdId = null;
+  ['p-id','p-out-pid','p-out-name','p-out-qty','p-batch','p-notes'].forEach(function(i) { document.getElementById(i).value = ''; });
+  inputRows = []; addInputRow(); addInputRow(); addInputRow();
+  document.getElementById('prod-form-mode-label').textContent = 'New production entry';
+  document.getElementById('prod-submit-btn').textContent      = 'Save production entry';
+  document.getElementById('prod-cancel-btn').style.display    = 'none';
+}
+
+function renderProdTable() {
+  var q    = (document.getElementById('prod-search').value || '').toLowerCase();
+  var list = productions.filter(function(p) {
+    return !q || p.prid.toLowerCase().indexOf(q) > -1 || p.outNm.toLowerCase().indexOf(q) > -1 ||
+      p.outPid.toLowerCase().indexOf(q) > -1 || (p.batch||'').toLowerCase().indexOf(q) > -1;
+  }).slice().reverse();
+  var tb = document.getElementById('prod-tb');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="empty-icon">+</div><p>No production entries yet</p></div></td></tr>'; return; }
+  tb.innerHTML = list.map(function(p, i) {
+    var inp = (p.inputs || []).map(function(r) {
+      return '<div style="white-space:nowrap;margin-bottom:2px">' + pidChip(r.pid) + ' <span style="color:#8b949e">' + r.name + '</span> <span class="mono" style="font-size:11px;color:#3fb950">' + fmt(r.qty) + ' kg</span></div>';
+    }).join('');
+    return '<tr>' +
+      '<td class="mono" style="color:#484f58;font-size:11px">' + (list.length - i) + '</td>' +
+      '<td class="mono">' + p.date + '</td>' +
+      '<td><span class="mono" style="color:#58a6ff">' + p.prid + '</span></td>' +
+      '<td>' + p.outNm + '</td>' +
+      '<td>' + pidChip(p.outPid) + '</td>' +
+      '<td class="mono" style="color:#3fb950">' + fmt(p.outQty) + ' kg</td>' +
+      '<td style="font-size:12px;min-width:180px">' + inp + '</td>' +
+      '<td class="mono" style="font-size:11px;color:#8b949e">' + (p.batch || '-') + '</td>' +
+      '<td style="font-size:11px;color:#8b949e">' + (p.notes || '-') + '</td>' +
+      '<td><div class="action-btns">' +
+        '<button class="btn btn-sm btn-edit" onclick="editProd(\'' + p.id + '\')">Edit</button>' +
+        '<button class="btn btn-sm btn-del" onclick="askDelete(\'prod\',\'' + p.id + '\',\'' + p.prid + '\')">Del</button>' +
+      '</div></td></tr>';
+  }).join('');
+}
+
+// ── DELETE ──
+function askDelete(type, id, label) {
+  pendingDeleteType = type;
+  pendingDeleteId   = id;
+  document.getElementById('confirm-msg').textContent = 'Delete "' + label + '"? This cannot be undone.';
+  document.getElementById('confirm-del').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-del').classList.remove('open');
+  pendingDeleteId = null; pendingDeleteType = null;
+}
+function confirmDelete() {
+  if (!pendingDeleteId) return;
+  if (pendingDeleteType === 'tx') {
+    transactions = transactions.filter(function(t) { return t.id != pendingDeleteId; });
+    apiCall({ action:'deleteTx', id:pendingDeleteId });
+    renderTxTable();
+  } else {
+    var prod = null;
+    for (var i = 0; i < productions.length; i++) { if (productions[i].id == pendingDeleteId) { prod = productions[i]; break; } }
+    if (prod) transactions = transactions.filter(function(t) { return t.ref !== prod.prid; });
+    productions = productions.filter(function(p) { return p.id != pendingDeleteId; });
+    apiCall({ action:'deleteProd', id:pendingDeleteId });
+    renderProdTable(); renderTxTable();
+  }
+  closeConfirm();
+}
+
+// ── STOCK SUMMARY ──
+function renderStock() {
+  var admin      = isAdmin();
+  var outputPids = getOutputPids();
+  var seen = {}; var pids = [];
+  transactions.forEach(function(t) {
+    var p = t.pid.toUpperCase();
+    if (!seen[p] && !outputPids[p]) { seen[p] = true; pids.push(p); }
+  });
+  document.getElementById('metric-val-card').style.display = admin ? '' : 'none';
+  var grid = document.getElementById('stock-grid');
+  if (!pids.length) {
+    grid.innerHTML = '<div class="stock-card" style="grid-column:1/-1"><div class="empty"><div class="empty-icon">o</div><p>No raw material transactions yet</p></div></div>';
+    document.getElementById('s-count').textContent = '0';
+    document.getElementById('s-val').textContent   = 'Rs 0';
+    document.getElementById('s-out').textContent   = '0';
+    return;
+  }
+  var items = pids.map(function(pid) {
+    var stock    = getStock(pid);
+    var avg      = getAvgPrice(pid);
+    var unit     = getLastUnit(pid);
+    var name     = getLastName(pid);
+    var val      = stock * avg;
+    var inTotal  = transactions.filter(function(t) { return t.pid === pid && t.type === 'inward';  }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
+    var outTotal = transactions.filter(function(t) { return t.pid === pid && t.type === 'outward'; }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
+    return { pid:pid, name:name, stock:stock, avg:avg, val:val, unit:unit, inTotal:inTotal, outTotal:outTotal };
+  }).sort(function(a,b) { return a.name.localeCompare(b.name); });
+  document.getElementById('s-count').textContent = items.length;
+  document.getElementById('s-val').textContent   = 'Rs ' + items.reduce(function(s,i) { return s+i.val; }, 0).toLocaleString('en-IN', { maximumFractionDigits:0 });
+  document.getElementById('s-out').textContent   = items.filter(function(i) { return i.stock <= 0; }).length;
+  grid.innerHTML = items.map(function(item) {
+    var pct         = item.inTotal > 0 ? Math.min(100, item.stock / item.inTotal * 100) : 0;
+    var isOut       = item.stock <= 0;
+    var isLow       = !isOut && item.stock < item.inTotal * 0.2 && item.inTotal > 0;
+    var statusBadge = isOut ? '<span class="badge b-red">Out of stock</span>' : isLow ? '<span class="badge b-amber">Low stock</span>' : '<span class="badge b-green">In stock</span>';
+    var barColor    = isOut ? '#f85149' : isLow ? '#d29922' : '#3fb950';
+    var qtyColor    = isOut ? '#f85149' : '#3fb950';
+    var valLine     = admin ? (item.avg > 0 ? 'Avg: ' + fmtM(item.avg) + ' / ' + item.unit + '  Value: ' + fmtM(item.val) : 'No purchase price') : '';
+    return '<div class="stock-card">' +
+      '<div class="stock-card-top"><span class="stock-pid">' + item.pid + '</span>' + statusBadge + '</div>' +
+      '<div class="stock-name">' + item.name + '</div>' +
+      '<div class="stock-unit">' + item.unit + '</div>' +
+      '<div style="font-family:monospace;font-size:28px;color:' + qtyColor + '">' + fmt(item.stock, 3) + '</div>' +
+      '<div class="stock-val-line">' + valLine + '</div>' +
+      '<div class="stock-bar-wrap"><div class="stock-bar" style="width:' + pct.toFixed(1) + '%;background:' + barColor + '"></div></div>' +
+      '<div class="stock-meta-row"><span>In: ' + fmt(item.inTotal,3) + '</span><span>Used: ' + fmt(item.outTotal,3) + '</span><span>Bal: ' + fmt(item.stock,3) + '</span></div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── BATCH COSTING ──
+function renderCosting() {
+  var list = document.getElementById('costing-list');
+  if (!productions.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">Rs</div><p>No production entries yet</p></div>'; return; }
+  list.innerHTML = productions.slice().reverse().map(function(p) {
+    var costPerKg = p.outQty > 0 ? p.totalRMCost / p.outQty : 0;
+    var rows = (p.inputs || []).map(function(r) {
+      return '<tr>' +
+        '<td>' + pidChip(r.pid) + '</td>' +
+        '<td style="color:#e6edf3">' + r.name + '</td>' +
+        '<td class="mono" style="color:#3fb950">' + fmt(r.qty) + ' kg</td>' +
+        '<td class="mono">' + (r.unitCost > 0 ? fmtM(r.unitCost) : '-') + '</td>' +
+        '<td class="mono" style="color:#d29922">' + (r.totalCost > 0 ? fmtM(r.totalCost) : '-') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="costing-card">' +
+      '<div class="costing-hdr">' +
+        '<div class="costing-hdr-left">' +
+          '<span class="costing-prid">' + p.prid + '</span>' +
+          '<span class="costing-date">' + p.date + '</span>' +
+          '<span style="font-size:12px;color:#8b949e">' + p.outNm + ' ' + pidChip(p.outPid) + ' output: <span class="mono" style="color:#3fb950">' + fmt(p.outQty) + ' kg</span></span>' +
+          (p.batch ? '<span class="badge b-amber">' + p.batch + '</span>' : '') +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div class="costing-total-lbl">Total RM cost</div>' +
+          '<div class="costing-total">' + fmtM(p.totalRMCost) + '</div>' +
+          '<div class="mono" style="font-size:11px;color:#484f58;margin-top:2px">' + fmtM(costPerKg) + ' / kg output</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Product ID</th><th>Material</th><th>Qty used</th><th>Avg rate</th><th>Cost</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="4" style="text-align:right;color:#8b949e">Total raw material cost</td>' +
+          '<td class="mono" style="color:#3fb950">' + fmtM(p.totalRMCost) + '</td>' +
+        '</tr></tfoot>' +
+      '</table></div>' +
+    '</div>';
+  }).join('');
+}
+</script>
+</body>
+</html>
