@@ -169,7 +169,7 @@ tfoot td{padding:9px 14px;background:#1c2128;font-weight:600;border-top:1px soli
     <div class="login-title">Sign in</div>
     <div class="login-fg"><label>Username</label><input type="text" id="l-user" placeholder="Enter username" autocomplete="username"></div>
     <div class="login-fg"><label>Password</label><input type="password" id="l-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button class="login-btn" onclick="doLogin()">Sign in</button>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign in</button>
     <div class="login-err" id="login-err">Incorrect username or password</div>
 
   </div>
@@ -323,12 +323,9 @@ tfoot td{padding:9px 14px;background:#1c2128;font-weight:600;border-top:1px soli
 </div>
 
 <script>
-var SCRIPT_URL = "<?= scriptUrl ?>";
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrnKw3K-JQew6sVh8T9Y7XbW4QQPYWnW17XBmTGilUdHKj5dq4UcFm5WwpO-gdmDPtw/exec";
 
-var ACCOUNTS = {
-  admin:   { password: 'admin123', role: 'admin',   displayName: 'Admin'   },
-  manager: { password: 'mgr456',   role: 'manager', displayName: 'Manager' }
-};
+// Passwords handled server-side in Code.gs
 
 var currentUser       = null;
 var transactions      = [];
@@ -343,32 +340,48 @@ var autoRefreshTimer  = null;
 
 // ── AUTH ──
 function doLogin() {
-  var u   = document.getElementById('l-user').value.trim().toLowerCase();
-  var p   = document.getElementById('l-pass').value;
-  var acc = ACCOUNTS[u];
-  if (!acc || acc.password !== p) {
-    document.getElementById('login-err').style.display = 'block';
-    document.getElementById('l-pass').value = '';
-    return;
-  }
-  currentUser = { username: u, role: acc.role, displayName: acc.displayName };
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display          = 'flex';
-  document.getElementById('topbar-user').textContent    = acc.displayName;
-  document.getElementById('role-badge').textContent     = acc.role.toUpperCase();
-  document.getElementById('role-badge').className       = 'role-badge role-' + acc.role;
-  applyRoleUI();
-  document.getElementById('t-date').valueAsDate = new Date();
-  document.getElementById('p-date').valueAsDate = new Date();
-  addInputRow(); addInputRow(); addInputRow();
-  
-  loadAll();
-  // Start auto-refresh every 2 minutes
-  autoRefreshTimer = setInterval(function() {
-    if (currentUser) {
+  var u = document.getElementById('l-user').value.trim().toLowerCase();
+  var p = document.getElementById('l-pass').value;
+  if (!u || !p) { document.getElementById('login-err').style.display = 'block'; return; }
+  var btn = document.getElementById('login-btn');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  document.getElementById('login-err').style.display = 'none';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', SCRIPT_URL + '?action=checkLogin&username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p), true);
+  xhr.onload = function() {
+    btn.textContent = 'Sign in';
+    btn.disabled = false;
+    try {
+      var res = JSON.parse(xhr.responseText);
+      if (!res.ok) {
+        document.getElementById('login-err').style.display = 'block';
+        document.getElementById('l-pass').value = '';
+        return;
+      }
+      currentUser = { username: u, role: res.role, displayName: res.displayName };
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('topbar-user').textContent = res.displayName;
+      document.getElementById('role-badge').textContent = res.role.toUpperCase();
+      document.getElementById('role-badge').className = 'role-badge role-' + res.role;
+      applyRoleUI();
+      document.getElementById('t-date').valueAsDate = new Date();
+      document.getElementById('p-date').valueAsDate = new Date();
+      addInputRow(); addInputRow(); addInputRow();
       loadAll();
+      autoRefreshTimer = setInterval(function() { if (currentUser) { loadAll(); } }, 120000);
+    } catch(e) {
+      document.getElementById('login-err').style.display = 'block';
+      document.getElementById('l-pass').value = '';
     }
-  }, 120000);
+  };
+  xhr.onerror = function() {
+    btn.textContent = 'Sign in';
+    btn.disabled = false;
+    document.getElementById('login-err').style.display = 'block';
+  };
+  xhr.send();
 }
 
 function doLogout() {
@@ -416,50 +429,45 @@ function manualRefresh() {
 }
 
 // ── API ──
-// pendingSaves tracks how many saves are in flight
 var pendingSaves = 0;
 
 function apiCall(params, callback) {
   pendingSaves++;
-  syncStatus("loading", "saving...");
+  syncStatus('loading', 'saving...');
   var qs = Object.keys(params).map(function(k) {
-    return k + "=" + encodeURIComponent(params[k] === null || params[k] === undefined ? "" : params[k]);
-  }).join("&");
-  var url = SCRIPT_URL + "?" + qs;
+    return k + '=' + encodeURIComponent(params[k] === null || params[k] === undefined ? '' : params[k]);
+  }).join('&');
   var xhr = new XMLHttpRequest();
-  xhr.open("GET", url, true);
+  xhr.open('GET', SCRIPT_URL + '?' + qs, true);
   xhr.onload = function() {
     pendingSaves--;
     try {
       var data = JSON.parse(xhr.responseText);
       if (pendingSaves === 0) {
-        syncStatus("ok", "synced");
+        syncStatus('ok', 'synced');
         updateLastSync();
-        setTimeout(function() { syncStatus("idle", "synced"); }, 3000);
+        setTimeout(function() { syncStatus('idle', 'synced'); }, 3000);
       }
       if (callback) callback(data);
     } catch(e) {
-      syncStatus("err", "save error");
-      console.error("apiCall parse error:", e);
+      syncStatus('err', 'save error');
+      console.error('apiCall error:', e);
     }
   };
   xhr.onerror = function() {
     pendingSaves--;
-    syncStatus("err", "save error — check connection");
-    console.error("apiCall network error");
+    syncStatus('err', 'save error');
   };
   xhr.send();
 }
 
-// Warn user if they try to close while a save is in progress
-window.addEventListener("beforeunload", function(e) {
+window.addEventListener('beforeunload', function(e) {
   if (pendingSaves > 0) {
-    var msg = "Data is still being saved to Google Sheets. Please wait a moment before closing.";
+    var msg = 'Data is still saving. Please wait before closing.';
     e.returnValue = msg;
     return msg;
   }
 });
-
 
 function loadAll(doneCallback) {
   syncStatus('loading', 'loading...');
@@ -470,7 +478,6 @@ function loadAll(doneCallback) {
     if (done === 2) {
       transactions = txData;
       productions  = prodData;
-      
       syncStatus('ok', 'synced');
       updateLastSync();
       setTimeout(function() { syncStatus('idle', 'synced'); }, 2000);
