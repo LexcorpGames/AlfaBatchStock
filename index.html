@@ -298,8 +298,38 @@ tfoot td{padding:9px 14px;background:#1c2128;font-weight:600;border-top:1px soli
         <div class="metric" id="metric-val-card"><div class="metric-label">Total stock value</div><div class="metric-val val-green" id="s-val">Rs 0</div></div>
         <div class="metric"><div class="metric-label">Out of stock</div><div class="metric-val val-red" id="s-out">0</div><div class="metric-sub">products</div></div>
       </div>
-      <div class="summary-grid" id="stock-grid">
-        <div class="stock-card" style="grid-column:1/-1"><div class="empty"><div class="empty-icon">o</div><p>Loading...</p></div></div>
+      <div class="table-card">
+        <div class="table-head-bar">
+          <span class="table-head-title">Material register</span>
+          <div class="filter-row">
+            <input type="text" id="stock-search" placeholder="Search ID or name..." oninput="renderStock()">
+            <select id="stock-sort" onchange="renderStock()">
+              <option value="name">Sort by Name</option>
+              <option value="pid">Sort by Product ID</option>
+              <option value="qty">Sort by Balance (high-low)</option>
+              <option value="val">Sort by Value (high-low)</option>
+              <option value="status">Sort by Status</option>
+            </select>
+            <button class="btn btn-sm btn-edit" onclick="printStock()" style="white-space:nowrap">⎙ Print</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th onclick="setSortStock('pid')" style="cursor:pointer">Product ID <span id="sort-pid"></span></th>
+                <th onclick="setSortStock('name')" style="cursor:pointer">Name <span id="sort-name">▲</span></th>
+                <th>Unit</th>
+                <th onclick="setSortStock('qty')" style="cursor:pointer">Balance <span id="sort-qty"></span></th>
+                <th onclick="setSortStock('avg')" style="cursor:pointer">Avg Rate <span id="sort-avg"></span></th>
+                <th onclick="setSortStock('val')" style="cursor:pointer">Stock Value <span id="sort-val"></span></th>
+                <th onclick="setSortStock('status')" style="cursor:pointer">Status <span id="sort-status"></span></th>
+              </tr>
+            </thead>
+            <tbody id="stock-tb"><tr class="loading-row"><td colspan="8">Loading...</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -875,6 +905,19 @@ function confirmDelete() {
 }
 
 // ── STOCK SUMMARY ──
+var stockSortCol = 'name';
+var stockSortDir = 'asc';
+
+function setSortStock(col) {
+  if (stockSortCol === col) {
+    stockSortDir = stockSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    stockSortCol = col;
+    stockSortDir = col === 'qty' || col === 'val' || col === 'avg' ? 'desc' : 'asc';
+  }
+  renderStock();
+}
+
 function renderStock() {
   var admin      = isAdmin();
   var outputPids = getOutputPids();
@@ -884,45 +927,163 @@ function renderStock() {
     if (!seen[p] && !outputPids[p]) { seen[p] = true; pids.push(p); }
   });
   document.getElementById('metric-val-card').style.display = admin ? '' : 'none';
-  var grid = document.getElementById('stock-grid');
+  var tb = document.getElementById('stock-tb');
   if (!pids.length) {
-    grid.innerHTML = '<div class="stock-card" style="grid-column:1/-1"><div class="empty"><div class="empty-icon">o</div><p>No raw material transactions yet</p></div></div>';
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty"><p>No raw material transactions yet</p></div></td></tr>';
     document.getElementById('s-count').textContent = '0';
     document.getElementById('s-val').textContent   = 'Rs 0';
     document.getElementById('s-out').textContent   = '0';
     return;
   }
+
+  var q = (document.getElementById('stock-search') ? document.getElementById('stock-search').value || '' : '').toLowerCase();
+
   var items = pids.map(function(pid) {
-    var stock    = getStock(pid);
-    var avg      = getAvgPrice(pid);
-    var unit     = getLastUnit(pid);
-    var name     = getLastName(pid);
-    var val      = stock * avg;
-    var inTotal  = transactions.filter(function(t) { return t.pid === pid && t.type === 'inward';  }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
-    var outTotal = transactions.filter(function(t) { return t.pid === pid && t.type === 'outward'; }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
-    return { pid:pid, name:name, stock:stock, avg:avg, val:val, unit:unit, inTotal:inTotal, outTotal:outTotal };
-  }).sort(function(a,b) { return a.name.localeCompare(b.name); });
+    var stock = getStock(pid);
+    var avg   = getAvgPrice(pid);
+    var unit  = getLastUnit(pid);
+    var name  = getLastName(pid);
+    var val   = stock * avg;
+    var isOut = stock <= 0;
+    var inTotal = transactions.filter(function(t) { return t.pid === pid && t.type === 'inward'; }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
+    var isLow = !isOut && stock < inTotal * 0.2 && inTotal > 0;
+    var statusOrder = isOut ? 2 : isLow ? 1 : 0;
+    return { pid:pid, name:name, stock:stock, avg:avg, val:val, unit:unit, isOut:isOut, isLow:isLow, statusOrder:statusOrder };
+  });
+
+  // Update metrics
   document.getElementById('s-count').textContent = items.length;
   document.getElementById('s-val').textContent   = 'Rs ' + items.reduce(function(s,i) { return s+i.val; }, 0).toLocaleString('en-IN', { maximumFractionDigits:0 });
-  document.getElementById('s-out').textContent   = items.filter(function(i) { return i.stock <= 0; }).length;
-  grid.innerHTML = items.map(function(item) {
-    var pct         = item.inTotal > 0 ? Math.min(100, item.stock / item.inTotal * 100) : 0;
-    var isOut       = item.stock <= 0;
-    var isLow       = !isOut && item.stock < item.inTotal * 0.2 && item.inTotal > 0;
-    var statusBadge = isOut ? '<span class="badge b-red">Out of stock</span>' : isLow ? '<span class="badge b-amber">Low stock</span>' : '<span class="badge b-green">In stock</span>';
-    var barColor    = isOut ? '#f85149' : isLow ? '#d29922' : '#3fb950';
-    var qtyColor    = isOut ? '#f85149' : '#3fb950';
-    var valLine     = admin ? (item.avg > 0 ? 'Avg: ' + fmtM(item.avg) + ' / ' + item.unit + '  Value: ' + fmtM(item.val) : 'No purchase price') : '';
-    return '<div class="stock-card">' +
-      '<div class="stock-card-top"><span class="stock-pid">' + item.pid + '</span>' + statusBadge + '</div>' +
-      '<div class="stock-name">' + item.name + '</div>' +
-      '<div class="stock-unit">' + item.unit + '</div>' +
-      '<div style="font-family:monospace;font-size:28px;color:' + qtyColor + '">' + fmt(item.stock, 3) + '</div>' +
-      '<div class="stock-val-line">' + valLine + '</div>' +
-      '<div class="stock-bar-wrap"><div class="stock-bar" style="width:' + pct.toFixed(1) + '%;background:' + barColor + '"></div></div>' +
-      '<div class="stock-meta-row"><span>In: ' + fmt(item.inTotal,3) + '</span><span>Used: ' + fmt(item.outTotal,3) + '</span><span>Bal: ' + fmt(item.stock,3) + '</span></div>' +
-    '</div>';
+  document.getElementById('s-out').textContent   = items.filter(function(i) { return i.isOut; }).length;
+
+  // Filter
+  if (q) {
+    items = items.filter(function(i) {
+      return i.pid.toLowerCase().indexOf(q) > -1 || i.name.toLowerCase().indexOf(q) > -1;
+    });
+  }
+
+  // Sort
+  items.sort(function(a, b) {
+    var av, bv;
+    if (stockSortCol === 'pid')    { av = a.pid;         bv = b.pid; }
+    else if (stockSortCol === 'name')   { av = a.name;        bv = b.name; }
+    else if (stockSortCol === 'qty')    { av = a.stock;       bv = b.stock; }
+    else if (stockSortCol === 'val')    { av = a.val;         bv = b.val; }
+    else if (stockSortCol === 'avg')    { av = a.avg;         bv = b.avg; }
+    else if (stockSortCol === 'status') { av = a.statusOrder; bv = b.statusOrder; }
+    else { av = a.name; bv = b.name; }
+    if (av < bv) return stockSortDir === 'asc' ? -1 : 1;
+    if (av > bv) return stockSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Update sort indicators
+  var cols = ['pid','name','qty','avg','val','status'];
+  cols.forEach(function(c) {
+    var el = document.getElementById('sort-' + c);
+    if (el) el.textContent = stockSortCol === c ? (stockSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
+
+  if (!items.length) {
+    tb.innerHTML = '<tr><td colspan="8"><div class="empty"><p>No results</p></div></td></tr>';
+    return;
+  }
+
+  tb.innerHTML = items.map(function(item, i) {
+    var statusBadge = item.isOut ? '<span class="badge b-red">Out</span>' : item.isLow ? '<span class="badge b-amber">Low</span>' : '<span class="badge b-green">OK</span>';
+    var qtyColor    = item.isOut ? '#f85149' : '#3fb950';
+    var avgDisplay  = admin ? (item.avg > 0 ? fmtM(item.avg) : '-') : '-';
+    var valDisplay  = admin ? (item.val > 0 ? fmtM(item.val) : 'Rs 0') : '-';
+    return '<tr>' +
+      '<td class="mono" style="color:#484f58;font-size:11px">' + (i + 1) + '</td>' +
+      '<td>' + pidChip(item.pid) + '</td>' +
+      '<td style="font-weight:500">' + item.name + '</td>' +
+      '<td style="color:#484f58">' + item.unit + '</td>' +
+      '<td class="mono" style="color:' + qtyColor + ';font-size:14px;font-weight:600">' + fmt(item.stock, 3) + '</td>' +
+      '<td class="mono">' + avgDisplay + '</td>' +
+      '<td class="mono" style="color:#d29922">' + valDisplay + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+    '</tr>';
   }).join('');
+}
+
+// ── PRINT STOCK ──
+function printStock() {
+  var admin      = isAdmin();
+  var outputPids = getOutputPids();
+  var seen = {}; var pids = [];
+  transactions.forEach(function(t) {
+    var p = t.pid.toUpperCase();
+    if (!seen[p] && !outputPids[p]) { seen[p] = true; pids.push(p); }
+  });
+
+  var items = pids.map(function(pid) {
+    var stock = getStock(pid);
+    var avg   = getAvgPrice(pid);
+    var unit  = getLastUnit(pid);
+    var name  = getLastName(pid);
+    var val   = stock * avg;
+    var inTotal = transactions.filter(function(t) { return t.pid === pid && t.type === 'inward'; }).reduce(function(s,t) { return s + parseFloat(t.qty); }, 0);
+    var isOut = stock <= 0;
+    var isLow = !isOut && stock < inTotal * 0.2 && inTotal > 0;
+    return { pid:pid, name:name, stock:stock, avg:avg, val:val, unit:unit, isOut:isOut, isLow:isLow };
+  });
+
+  // Sort by balance descending
+  items.sort(function(a, b) { return b.stock - a.stock; });
+
+  var now = new Date();
+  var dateStr = now.getDate().toString().padStart(2,'0') + '/' + (now.getMonth()+1).toString().padStart(2,'0') + '/' + now.getFullYear() + ' ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+  var rows = items.map(function(item, i) {
+    var status = item.isOut ? 'Out of stock' : item.isLow ? 'Low stock' : 'In stock';
+    var statusColor = item.isOut ? '#c0392b' : item.isLow ? '#d29922' : '#27ae60';
+    var avgDisplay = admin ? (item.avg > 0 ? 'Rs ' + item.avg.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : '-') : '-';
+    var valDisplay = admin ? (item.val > 0 ? 'Rs ' + item.val.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'Rs 0') : '-';
+    return '<tr>' +
+      '<td>' + (i+1) + '</td>' +
+      '<td style="font-family:monospace">' + item.pid + '</td>' +
+      '<td>' + item.name + '</td>' +
+      '<td>' + item.unit + '</td>' +
+      '<td style="font-weight:700;color:' + (item.isOut ? '#c0392b' : '#27ae60') + '">' + parseFloat(item.stock).toFixed(3) + '</td>' +
+      '<td>' + avgDisplay + '</td>' +
+      '<td>' + valDisplay + '</td>' +
+      '<td style="color:' + statusColor + ';font-weight:600">' + status + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var totalVal = admin ? 'Rs ' + items.reduce(function(s,i) { return s+i.val; }, 0).toLocaleString('en-IN', {maximumFractionDigits:0}) : '-';
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>Stock Summary — Alfa Industries</title>' +
+    '<style>' +
+      'body{font-family:Arial,sans-serif;font-size:12px;color:#000;margin:24px}' +
+      'h1{font-size:18px;margin:0 0 4px}' +
+      '.sub{font-size:11px;color:#555;margin-bottom:16px}' +
+      '.meta{display:flex;justify-content:space-between;margin-bottom:16px;font-size:11px;color:#333}' +
+      'table{width:100%;border-collapse:collapse;font-size:12px}' +
+      'thead th{background:#1a1a2e;color:#fff;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em}' +
+      'tbody td{padding:7px 10px;border-bottom:1px solid #e0e0e0}' +
+      'tbody tr:nth-child(even){background:#f9f9f9}' +
+      'tfoot td{padding:8px 10px;font-weight:700;border-top:2px solid #333;background:#f0f0f0}' +
+      '@media print{body{margin:12px}.no-print{display:none}}' +
+    '</style></head><body>' +
+    '<h1>Stock Summary — Alfa Industries</h1>' +
+    '<div class="sub">Sorted by balance (highest to lowest)</div>' +
+    '<div class="meta"><span>Printed: ' + dateStr + '</span><span>Total materials: ' + items.length + ' &nbsp;|&nbsp; Total value: ' + totalVal + '</span></div>' +
+    '<table>' +
+      '<thead><tr><th>#</th><th>Product ID</th><th>Name</th><th>Unit</th><th>Balance</th><th>Avg Rate</th><th>Stock Value</th><th>Status</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="4" style="text-align:right">Total stock value</td><td colspan="4">' + totalVal + '</td></tr></tfoot>' +
+    '</table>' +
+    '</body></html>';
+
+  var win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(function() { win.print(); }, 500);
 }
 
 // ── BATCH COSTING ──
