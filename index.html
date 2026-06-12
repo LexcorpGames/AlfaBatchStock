@@ -631,6 +631,15 @@ function submitTx() {
   if (qty <= 0) { notify('tx-notif', 'Quantity must be > 0',     'err'); return; }
   if (txType === 'outward') {
     var bal = getStock(pid);
+    // If editing an existing outward tx for same pid, add back the old qty so validation is correct
+    if (editingTxId) {
+      for (var ei = 0; ei < transactions.length; ei++) {
+        if (transactions[ei].id == editingTxId && transactions[ei].type === 'outward' && transactions[ei].pid === pid) {
+          bal += parseFloat(transactions[ei].qty) || 0;
+          break;
+        }
+      }
+    }
     if (qty > bal + 0.0001) { notify('tx-notif', 'Insufficient stock — only ' + fmt(bal) + ' ' + unit + ' available', 'err'); return; }
   }
   var id  = editingTxId || (Date.now() + Math.random()).toString();
@@ -692,6 +701,10 @@ function renderTxTable() {
   if (!list.length) { tb.innerHTML = '<tr><td colspan="12"><div class="empty"><div class="empty-icon">+</div><p>No transactions yet</p></div></td></tr>'; return; }
   tb.innerHTML = list.map(function(t, i) {
     var badge = t.type === 'inward' ? '<span class="badge b-green">IN</span>' : '<span class="badge b-red">OUT</span>';
+    var isAutoProd = (t.notes && (t.notes.indexOf('Production - ') === 0 || t.notes.indexOf('Output') === 0));
+    var actions = isAutoProd
+      ? '<span style="font-family:monospace;font-size:10px;color:#484f58">auto</span>'
+      : '<div class="action-btns"><button class="btn btn-sm btn-edit" onclick="editTx(\'' + t.id + '\')">Edit</button><button class="btn btn-sm btn-del" onclick="askDelete(\'tx\',\'' + t.id + '\',\'' + t.pid + '\')">Del</button></div>';
     return '<tr>' +
       '<td class="mono" style="color:#484f58;font-size:11px">' + (list.length - i) + '</td>' +
       '<td class="mono">' + t.date + '</td>' +
@@ -704,10 +717,7 @@ function renderTxTable() {
       '<td class="mono" style="color:#d29922">' + (t.total > 0 ? fmtM(t.total) : '-') + '</td>' +
       '<td class="mono" style="font-size:11px;color:#8b949e">' + (t.ref || '-') + '</td>' +
       '<td style="font-size:11px;color:#8b949e">' + (t.notes || '-') + '</td>' +
-      '<td><div class="action-btns">' +
-        '<button class="btn btn-sm btn-edit" onclick="editTx(\'' + t.id + '\')">Edit</button>' +
-        '<button class="btn btn-sm btn-del" onclick="askDelete(\'tx\',\'' + t.id + '\',\'' + t.pid + '\')">Del</button>' +
-      '</div></td></tr>';
+      '<td>' + actions + '</td></tr>';
   }).join('');
 }
 
