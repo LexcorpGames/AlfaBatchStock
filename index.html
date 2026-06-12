@@ -353,7 +353,7 @@ tfoot td{padding:9px 14px;background:#1c2128;font-weight:600;border-top:1px soli
 </div>
 
 <script>
-var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNrnKw3K-JQew6sVh8T9Y7XbW4QQPYWnW17XBmTGilUdHKj5dq4UcFm5WwpO-gdmDPtw/exec";
+var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzdJItie4enoezqw49fl-p5mgxZlfQgUL_FAmdLXnLjxxAH5fGF1eNAD-r3Q0pEaqU5YA/exec";
 
 // Passwords handled server-side in Code.gs
 
@@ -803,14 +803,14 @@ function submitProd() {
     ['p-id','p-out-pid','p-out-name','p-out-qty','p-batch','p-notes'].forEach(function(i) { document.getElementById(i).value = ''; });
     inputRows = []; addInputRow(); addInputRow(); addInputRow();
   }
+  // Add outward transactions to local memory (Code.gs handles saving them)
   validRows.forEach(function(r, i) {
     var txRec = { id:(now+i+0.1).toString(), pid:r.pid, name:r.name, date:date, type:'outward', qty:r.qty, unit:'kg', price:0, total:0, ref:prid, notes:'Production - ' + outNm };
     transactions.push(txRec);
-    if (!editingProdId) apiCall({ action:'saveTx', id:txRec.id, pid:r.pid, name:r.name, date:date, type:'outward', qty:r.qty, unit:'kg', price:0, total:0, ref:prid, notes:'Production - ' + outNm });
   });
+  // Add output inward transaction to local memory
   var outRec = { id:(now+99).toString(), pid:outPid, name:outNm, date:date, type:'inward', qty:outQty, unit:'kg', price:0, total:0, ref:prid, notes:'Output' + (batch ? ' - ' + batch : '') };
   transactions.push(outRec);
-  if (!editingProdId) apiCall({ action:'saveTx', id:outRec.id, pid:outPid, name:outNm, date:date, type:'inward', qty:outQty, unit:'kg', price:0, total:0, ref:prid, notes:outRec.notes });
   renderTxTable();
   renderProdTable();
 }
